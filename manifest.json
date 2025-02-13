@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Bycycle Tracker",
+  "description": "Scrapes bike data and stores it locally for analysis.",
+  "version": "1.0",
+  "permissions": [
+    "storage",
+    "webRequest",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://buycycle.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "assets/icon128.png",
+      "48": "assets/icon128.png",
+      "128": "assets/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
