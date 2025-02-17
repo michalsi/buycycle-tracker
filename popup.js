@@ -17,5 +17,5 @@ document.getElementById('fetch-data').addEventListener('click', () => {
 });
 
 document.getElementById('view-data').addEventListener('click', () => {
-    chrome.tabs.create({ url: "data.html" });
+    chrome.tabs.create({ url: "dashboard.html" });
 });

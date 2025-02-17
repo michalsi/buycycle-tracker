@@ -4,14 +4,14 @@ async function initialize() {
     try {
         const bikeData = await getBikeDataFromStorage();
         const parsedData = parseBikeData(bikeData);
-        if (!parsedData) return;
-
+        if (!parsedData) {
+            throw new Error("Failed to parse bike data");
+        }
         const table = document.getElementById('bike-data');
         createTableHeader(table);
         populateTableRows(table, parsedData);
     } catch (error) {
-        console.error("Initialization error:", error);
-        document.getElementById('bike-data').innerHTML = "Error loading data. Check console for details.";
+        document.getElementById('bike-data').innerHTML = `Error loading data: ${error.message}. Check console for details.`;
     }
 }
 
@@ -21,25 +21,41 @@ function getBikeDataFromStorage() {
             if (chrome.runtime.lastError) {
                 reject(new Error(chrome.runtime.lastError));
             } else {
-                resolve(result.bikeData);
+                if (!result.bikeData) {
+                    reject(new Error("No bike data found in storage"));
+                } else {
+                    resolve(result.bikeData);
+                }
             }
         });
     });
 }
 
 function parseBikeData(data) {
+    if (!data) {
+        console.error("No data to parse");
+        return null;
+    }
     try {
-        return JSON.parse(data);
+        const parsed = JSON.parse(data);
+        if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+            return Object.values(parsed);
+        } else if (Array.isArray(parsed)) {
+            return parsed;
+        } else {
+            console.error("Parsed data is neither an object nor an array:", parsed);
+            return null;
+        }
     } catch (error) {
         console.error("Error parsing bikeData:", error);
-        document.getElementById('bike-data').innerHTML = "Error loading data. Check console for details.";
         return null;
     }
 }
 
+
 function createTableHeader(table) {
     const headerRow = table.insertRow();
-    const headers = ['ID', 'Name', 'Year', 'Current Price', 'MSRP', 'Status', 'Preowned', 'Receipt', 'Last Service', 'City', 'Frame Material', 'Mileage', 'Sold Date', 'Price Changed', 'Created', 'Updated', 'Components', 'Image', 'Price History', 'Info'];
+    const headers = ['Name', 'Year', 'Current Price', 'MSRP', 'Status', 'Preowned', 'Receipt', 'Last Service', 'City', 'Mileage', 'Sold Date', 'Price Changed', 'Created', 'Updated', 'Component', 'Image', 'Price History', 'Info'];
 
     headers.forEach(header => {
         const headerCell = document.createElement('th');
@@ -51,23 +67,21 @@ function createTableHeader(table) {
 function populateTableRows(table, bikeData) {
     bikeData.forEach(bike => {
         const row = table.insertRow();
-        addCell(row, bike.id);
         addCellWithLink(row, bike.name, bike.url);
         addCell(row, bike.year);
         addCell(row, bike.price_converted_formatted);
-        addCell(row, bike.msrp_converted_formatted);
-        addCell(row, bike.status);
+        addCellWithStrikethrough(row, bike.msrp_converted_formatted);
+        addCell(row, bike.status || 'available');
         addCell(row, bike.preowned ? 'Yes' : 'No');
         addCell(row, bike.receipt_present ? 'Yes' : 'No');
         addCell(row, bike.last_service_code);
         addCell(row, bike.city);
-        addCell(row, bike.frame_material_code);
         addCell(row, bike.mileage_code);
         addCell(row, formatDate(bike.sold_date));
         addCell(row, formatDate(bike.price_changed_at));
         addCell(row, formatDate(bike.created_at));
         addCell(row, formatDate(bike.updated_at));
-        addComponentsCell(row, bike.components);
+        addComponentCell(row, bike.component);
         addImageCell(row, bike.image_url);
         addPriceHistoryCell(row, bike.price_history);
         addExpandableInfoCell(row, bike.info);
@@ -88,16 +102,19 @@ function addCellWithLink(row, text, url) {
     cell.appendChild(link);
 }
 
-function addComponentsCell(row, components) {
+function addCellWithStrikethrough(row, text) {
     const cell = row.insertCell();
-    if (components && components.length > 0) {
-        const list = document.createElement('ul');
-        components.forEach(component => {
-            const item = document.createElement('li');
-            item.textContent = `${component.name} (ID: ${component.id})`;
-            list.appendChild(item);
-        });
-        cell.appendChild(list);
+    const strikethrough = document.createElement('s');
+    strikethrough.textContent = text || '';
+    cell.appendChild(strikethrough);
+}
+
+function addComponentCell(row, component) {
+    const cell = row.insertCell();
+    if (component && component.name) {
+        cell.textContent = `${component.name} (ID: ${component.id})`;
+    } else {
+        cell.textContent = 'N/A';
     }
 }
 
@@ -129,20 +146,9 @@ function addPriceHistoryCell(row, priceHistory) {
 function addExpandableInfoCell(row, info) {
     const cell = row.insertCell();
     cell.innerHTML = `
-<button onclick="toggleInfo(this)">Show Info</button>
-<div style="display:none;">${info}</div>
+        <button onclick="toggleInfo(this)">Show Info</button>
+        <div style="display:none;">${info}</div>
     `;
-}
-
-function toggleInfo(button) {
-    const infoDiv = button.nextElementSibling;
-    if (infoDiv.style.display === 'none') {
-        infoDiv.style.display = 'block';
-        button.textContent = 'Hide Info';
-    } else {
-        infoDiv.style.display = 'none';
-        button.textContent = 'Show Info';
-    }
 }
 
 function formatDate(dateString) {

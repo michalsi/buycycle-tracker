@@ -101,16 +101,21 @@ function getRequestBody(filterUrl) {
  * @param {Function} sendResponse - Function to send response.
  */
 function processApiResponse(data, sendResponse) {
-    console.log("Full API Response:", JSON.stringify(data, null, 2));
     const bikesArray = data?.bikes?.data || [];
 
     chrome.storage.local.get(STORAGE_KEY, (result) => {
         const existingBikes = parseExistingBikeData(result[STORAGE_KEY]);
         const processedBikes = processBikesData(bikesArray, existingBikes);
 
-        chrome.storage.local.set({ [STORAGE_KEY]: JSON.stringify(processedBikes) }, () => {
+        // Convert the array back to an object for easier lookup
+        const updatedBikes = processedBikes.reduce((acc, bike) => {
+            acc[bike.id] = bike;
+            return acc;
+        }, {});
+
+        chrome.storage.local.set({ [STORAGE_KEY]: JSON.stringify(updatedBikes) }, () => {
             console.log("Bike Data stored successfully");
-            sendResponse({ success: true, data: processedBikes });
+            sendResponse({ success: true, data: Object.values(updatedBikes) });
         });
     });
 }
@@ -139,12 +144,16 @@ function parseExistingBikeData(bikeData) {
  * @returns {Array} Processed bikes data.
  */
 function processBikesData(bikesArray, existingBikes) {
-    return bikesArray.map(bike => {
+    const processedBikes = bikesArray.map(bike => {
         const existingBike = existingBikes[bike.id];
-        const priceHistory = existingBike?.price_history || [];
+        let priceHistory = existingBike?.price_history || [];
 
-        // Check if the price has changed
-        if (!existingBike || existingBike.price !== bike.price) {
+        // Process bike_price_log_shop if available
+        priceHistory = processPriceLog(bike.bike_price_log_shop, priceHistory);
+
+        // Check if the current price has changed and is different from the last recorded price
+        const lastRecordedPrice = priceHistory.length > 0 ? priceHistory[priceHistory.length - 1].price : null;
+        if (bike.price !== lastRecordedPrice) {
             priceHistory.push({
                 price: bike.price,
                 date: new Date().toISOString()
@@ -155,9 +164,67 @@ function processBikesData(bikesArray, existingBikes) {
             ...bike,
             url: `https://buycycle.com/pl-pl/bike/${bike.slug}`,
             image_url: bike.image_side?.file_url,
-            price_history: priceHistory
+            price_history: priceHistory,
+            status: 'available'
         };
     });
+
+    // Check for sold bikes
+    const soldBikes = checkForSoldBikes(existingBikes, processedBikes);
+
+    return [...processedBikes, ...soldBikes];
+}
+
+function checkForSoldBikes(existingBikes, currentBikes) {
+    const currentBikeIds = new Set(currentBikes.map(bike => bike.id));
+    const soldBikes = [];
+
+    for (const [id, bike] of Object.entries(existingBikes)) {
+        if (!currentBikeIds.has(id)) {
+            const lastPrice = bike.price_history[bike.price_history.length - 1].price;
+            soldBikes.push({
+                ...bike,
+                status: 'sold',
+                price: lastPrice,
+                price_history: [
+                    ...bike.price_history,
+                    { price: lastPrice, date: new Date().toISOString(), status: 'sold' }
+                ]
+            });
+        }
+    }
+
+    return soldBikes;
+}
+
+
+function processPriceLog(priceLog, existingPriceHistory) {
+    if (!priceLog) return existingPriceHistory;
+
+    const { new_price, old_price } = priceLog;
+    const lastRecordedPrice = existingPriceHistory.length > 0
+        ? existingPriceHistory[existingPriceHistory.length - 1].price
+        : null;
+
+    const updatedPriceHistory = [...existingPriceHistory];
+
+    // Add old_price if it's different from the last recorded price
+    if (old_price && old_price !== lastRecordedPrice) {
+        updatedPriceHistory.push({
+            price: old_price,
+            date: new Date().toISOString() // We don't have the exact date, so we use current date
+        });
+    }
+
+    // Add new_price if it's different from the old_price
+    if (new_price && new_price !== old_price) {
+        updatedPriceHistory.push({
+            price: new_price,
+            date: new Date().toISOString()
+        });
+    }
+
+    return updatedPriceHistory;
 }
 
 /**
