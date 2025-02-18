@@ -1,9 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+<meta charset="UTF-8">
 <head>
     <title>Bike Data</title>
     <script src="dashboard.js" defer></script>
     <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
         table {
             border-collapse: collapse;
             width: 100%;
@@ -15,6 +20,48 @@
         }
         th {
             background-color: #f2f2f2;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        .tag {
+            display: inline-block;
+            padding: 0.2em 0.5em;
+            border-radius: 12px;
+            color: white;
+        }
+        .tag-green {
+            background-color: lightgreen;
+        }
+        .tag-red {
+            background-color: lightcoral;
+        }
+        .tag-blue {
+            background-color: lightblue;
+        }
+        .tag-orange {
+            background-color: orange;
+        }
+        /* Styles for link text highlighting */
+        .link-text-green {
+            background-color: #0a750c;
+            padding: 0.2em;
+            border-radius: 4px;
+        }
+        .link-text-blue {
+            background-color: #14eac3;
+            padding: 0.2em;
+            border-radius: 4px;
+        }
+        .link-text-orange {
+            background-color: #e3ae66;
+            padding: 0.2em;
+            border-radius: 4px;
+        }
+        .link-text-red {
+            background-color: lightcoral;
+            padding: 0.2em;
+            border-radius: 4px;
         }
     </style>
 </head>
